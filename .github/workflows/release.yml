@@ -124,7 +124,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [binaries, source]
+    needs: [source-revision, binaries, source]
     name: Publish GitHub release
     runs-on: ubuntu-24.04
     steps:
@@ -147,4 +147,5 @@ jobs:
             *-*) prerelease=(--prerelease) ;;
           esac
           gh release create "$TAG" release/*.tar.gz release/*.deb \
-            --generate-notes --title "$TAG" "${prerelease[@]}"
+            --generate-notes --target "${{ needs.source-revision.outputs.code_commit }}" \
+            --title "$TAG" "${prerelease[@]}"
