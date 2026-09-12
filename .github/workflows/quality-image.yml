@@ -60,7 +60,7 @@ jobs:
           push: true
           provenance: false
           sbom: false
-          tags: ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality:${{ inputs.image_tag }}-${{ matrix.arch }}
+          tags: ghcr.io/cpeter1207/rptadv-samplerate-adapter-ci:${{ inputs.image_tag }}-${{ matrix.arch }}
 
   manifest:
     name: Publish multi-architecture quality image
@@ -75,7 +75,7 @@ jobs:
           password: ${{ github.token }}
       - name: Create native-image manifest
         env:
-          IMAGE: ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality
+          IMAGE: ghcr.io/cpeter1207/rptadv-samplerate-adapter-ci
           TAG: ${{ inputs.image_tag }}
         run: |
           docker buildx imagetools create --tag "$IMAGE:$TAG" \

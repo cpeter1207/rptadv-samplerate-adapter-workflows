@@ -16,7 +16,7 @@ jobs:
   preflight:
     name: Fast quality
     runs-on: ubuntu-24.04
-    container: ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality:latest
+    container: ghcr.io/cpeter1207/rptadv-samplerate-adapter-ci:latest
     steps:
       - uses: actions/checkout@v7
         with:
