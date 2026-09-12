@@ -80,13 +80,3 @@ jobs:
         run: |
           docker buildx imagetools create --tag "$IMAGE:$TAG" \
             "$IMAGE:$TAG-amd64" "$IMAGE:$TAG-arm64"
-      - name: Make quality container public
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if ! gh api --method PATCH /user/packages/container/rptadv-samplerate-adapter-quality \
-            -f visibility=public >/dev/null; then
-            echo "::error::GitHub did not allow this workflow to make the adapter quality container public." >&2
-            exit 1
-          fi
