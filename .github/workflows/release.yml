@@ -1,0 +1,143 @@
+name: Verified adapter release
+
+on:
+  workflow_call:
+    inputs:
+      code_ref:
+        description: Immutable adapter-source revision to release.
+        required: true
+        type: string
+      tag:
+        description: Release tag.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  checks: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  source-revision:
+    name: Verify merged and validated source revision
+    runs-on: ubuntu-24.04
+    outputs:
+      code_commit: ${{ steps.verify.outputs.code_commit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: cpeter1207/rptadv-samplerate-adapter
+          ref: main
+          fetch-depth: 0
+      - id: verify
+        name: Require a validated main revision and matching Debian version
+        env:
+          CODE_REF: ${{ inputs.code_ref }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]
+          code_commit="$(git rev-parse "$CODE_REF^{commit}")"
+          git merge-base --is-ancestor "$code_commit" origin/main
+
+          release_version="${TAG#v}"
+          case "$release_version" in
+            *-*)
+              release_base="${release_version%%-*}"
+              release_prerelease="${release_version#*-}"
+              normalized_upstream="${release_base}~${release_prerelease//./}"
+              ;;
+            *) normalized_upstream="$release_version" ;;
+          esac
+
+          changelog="$(mktemp)"
+          trap 'rm -f "$changelog"' EXIT
+          git show "$code_commit:debian/changelog" > "$changelog"
+          debian_version="$(dpkg-parsechangelog -l"$changelog" -S Version)"
+          debian_without_epoch="${debian_version#*:}"
+          debian_upstream="${debian_without_epoch%-*}"
+          test "$normalized_upstream" = "$debian_upstream"
+
+          quality_result="$(gh api \
+            "/repos/cpeter1207/rptadv-samplerate-adapter/commits/$code_commit/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name == "Required quality gate")] | sort_by(.started_at) | last | .conclusion // ""')"
+          test "$quality_result" = success
+          echo "code_commit=$code_commit" >> "$GITHUB_OUTPUT"
+
+  binaries:
+    needs: source-revision
+    name: Debian 13 ${{ matrix.arch }} packages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality:latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: cpeter1207/rptadv-samplerate-adapter
+          ref: ${{ needs.source-revision.outputs.code_commit }}
+      - name: Verify native target architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: test "$(dpkg --print-architecture)" = "$EXPECTED_ARCH"
+      - name: Build and validate Debian packages
+        env:
+          RELEASE_VERSION: ${{ inputs.tag }}
+        run: |
+          make clean
+          make PACKAGE_VERSION="${RELEASE_VERSION#v}" all debian-package-check
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debian-packages-debian13-${{ matrix.arch }}
+          path: build/debian-source/*.deb
+          if-no-files-found: error
+
+  source:
+    needs: source-revision
+    name: Source archive
+    runs-on: ubuntu-24.04
+    container: ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality:latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: cpeter1207/rptadv-samplerate-adapter
+          ref: ${{ needs.source-revision.outputs.code_commit }}
+      - name: Build and validate release source archive
+        env:
+          RELEASE_VERSION: ${{ inputs.tag }}
+        run: make PACKAGE_VERSION="${RELEASE_VERSION#v}" distcheck
+      - uses: actions/upload-artifact@v7
+        with:
+          name: source-archive
+          path: build/rptadv-samplerate-adapter-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [binaries, source]
+    name: Publish GitHub release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: debian-packages-*
+          path: release
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: source-archive
+          path: release
+      - name: Publish release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release create "$TAG" release/*.tar.gz release/*.deb --generate-notes --title "$TAG"
