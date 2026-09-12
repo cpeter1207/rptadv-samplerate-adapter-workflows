@@ -21,7 +21,7 @@ branch, so a validated workflow repair does not require a source change.
 possible when source quality is failing.
 
 The expected image is
-`ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality:latest`. It must be
+`ghcr.io/cpeter1207/rptadv-samplerate-adapter-ci:latest`. It must be
 published once before container-based source gates can run.
 
 Source callers grant elevated permissions only to the workflow that needs

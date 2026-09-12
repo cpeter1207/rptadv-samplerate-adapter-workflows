@@ -17,7 +17,7 @@ jobs:
   documentation:
     name: Build and publish API documentation
     runs-on: ubuntu-24.04
-    container: ghcr.io/cpeter1207/rptadv-samplerate-adapter-quality:latest
+    container: ghcr.io/cpeter1207/rptadv-samplerate-adapter-ci:latest
     concurrency:
       group: github-pages
       cancel-in-progress: false
