@@ -128,6 +128,11 @@ jobs:
     name: Publish GitHub release
     runs-on: ubuntu-24.04
     steps:
+      # Generated release notes require a checked-out repository for Git history.
+      - uses: actions/checkout@v7
+        with:
+          repository: cpeter1207/rptadv-samplerate-adapter
+          ref: ${{ needs.source-revision.outputs.code_commit }}
       - uses: actions/download-artifact@v8
         with:
           pattern: debian-packages-*
