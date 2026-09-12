@@ -62,10 +62,11 @@ jobs:
           debian_upstream="${debian_without_epoch%-*}"
           test "$normalized_upstream" = "$debian_upstream"
 
-          quality_result="$(gh api \
-            "/repos/cpeter1207/rptadv-samplerate-adapter/commits/$code_commit/check-runs?per_page=100" \
-            --jq '[.check_runs[] | select(.name == "Required quality gate")] | sort_by(.started_at) | last | .conclusion // ""')"
-          test "$quality_result" = success
+          quality_run="$(gh api --paginate \
+            "repos/cpeter1207/rptadv-samplerate-adapter/commits/$code_commit/check-runs?per_page=100" \
+            --jq '.check_runs[] | select((.name == "Required quality gate" or .name == "quality / Required quality gate") and .conclusion == "success") | .id' \
+            | head -n 1)"
+          test -n "$quality_run"
           echo "code_commit=$code_commit" >> "$GITHUB_OUTPUT"
 
   binaries:
@@ -140,4 +141,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: gh release create "$TAG" release/*.tar.gz release/*.deb --generate-notes --title "$TAG"
+        run: |
+          prerelease=()
+          case "$TAG" in
+            *-*) prerelease=(--prerelease) ;;
+          esac
+          gh release create "$TAG" release/*.tar.gz release/*.deb \
+            --generate-notes --title "$TAG" "${prerelease[@]}"
