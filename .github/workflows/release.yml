@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   checks: read
+  pull-requests: read
 
 concurrency:
   group: release-${{ inputs.tag }}
@@ -42,6 +43,7 @@ jobs:
           set -euo pipefail
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]
           code_commit="$(git rev-parse "$CODE_REF^{commit}")"
+          test "$code_commit" = "$(git rev-parse "$TAG^{commit}")"
           git merge-base --is-ancestor "$code_commit" origin/main
 
           release_version="${TAG#v}"
@@ -62,11 +64,19 @@ jobs:
           debian_upstream="${debian_without_epoch%-*}"
           test "$normalized_upstream" = "$debian_upstream"
 
-          quality_run="$(gh api --paginate \
-            "repos/cpeter1207/rptadv-samplerate-adapter/commits/$code_commit/check-runs?per_page=100" \
-            --jq '.check_runs[] | select((.name == "Required quality gate" or .name == "quality / Required quality gate") and .conclusion == "success") | .id' \
-            | head -n 1)"
-          test -n "$quality_run"
+          metadata="$(gh api "repos/$GITHUB_REPOSITORY/commits/$code_commit/pulls")"
+          head="$(jq -er --arg commit "$code_commit" '
+            [.[] | select(.merged_at != null and .base.ref == "main" and
+              .merge_commit_sha == $commit)] |
+            if length == 1 then .[0].head.sha else error("source is not a merged main revision") end
+          ' <<< "$metadata")"
+          checks="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/commits/$head/check-runs?per_page=100" |
+            jq -s '[.[].check_runs[]]')"
+          jq -e '
+            [.[] | select(.name | endswith("Required quality gate"))] | sort_by(.id) | last |
+            .status == "completed" and .conclusion == "success"
+          ' <<< "$checks"
           echo "code_commit=$code_commit" >> "$GITHUB_OUTPUT"
 
   binaries:
