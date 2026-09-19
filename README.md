@@ -14,8 +14,9 @@ branch, so a validated workflow repair does not require a source change.
   image from the source repository's Dockerfile.
 - `documentation.yml` publishes warning-free API documentation to GitHub
   Pages.
-- `release.yml` verifies a successful quality check on the selected main
-  revision, then publishes only Debian 13 packages and the source archive.
+- `release.yml` verifies the latest successful required quality check on the
+  merged pull request's head, then publishes only Debian 13 packages and the
+  source archive from the tagged main revision.
 
 `validate.yml` runs Actionlint only. This keeps workflow repairs independently
 possible when source quality is failing.
@@ -26,6 +27,7 @@ published once before container-based source gates can run.
 
 Source callers grant elevated permissions only to the workflow that needs
 them: `packages: write` for image publishing, `pages: write` plus `id-token:
-write` for documentation, and `contents: write` plus `checks: read` for a
-release. The release workflow requires the exact source commit to expose a
-successful `Required quality gate` check run.
+write` for documentation, and `contents: write`, `checks: read`, and
+`pull-requests: read` for a release. The release workflow requires the tag to
+identify the exact merged main commit and its merged pull request's head to
+expose a successful latest `Required quality gate` check run.
