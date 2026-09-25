@@ -31,3 +31,7 @@ write` for documentation, and `contents: write`, `checks: read`, and
 `pull-requests: read` for a release. The release workflow requires the tag to
 identify the exact merged main commit and its merged pull request's head to
 expose a successful latest `Required quality gate` check run.
+
+After publication, the workflow refreshes the USBRadioPlus APT index. The
+source repository must provide an `APT_INDEX_DISPATCH_TOKEN` fine-grained PAT
+with `Contents: write` access only to `cpeter1207/USBRadioPlus`.
